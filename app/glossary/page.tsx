@@ -215,9 +215,9 @@ export default function GlossaryPage() {
           </ul>
           <p className="mt-4 text-xs text-muted-fg italic">
             Note: The Operator Life Cycle state <span className="mono">Unassisted</span> and the Verdict{" "}
-            <span className="mono">unknownSku</span> are paired but distinct: the Verdict is the system's
-            call (we don't know the SKU), and the Operator Life Cycle state is the operator's experience
-            (operating without model help). One causes the other; don't conflate them in code or copy.
+            <span className="mono">unknownSku</span> are paired but distinct: the Verdict is the system&apos;s
+            call (we don&apos;t know the SKU), and the Operator Life Cycle state is the operator&apos;s experience
+            (operating without model help). One causes the other; don&apos;t conflate them in code or copy.
           </p>
         </div>
       </section>
