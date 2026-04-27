@@ -1,6 +1,6 @@
 "use client";
 import { notFound, useParams } from "next/navigation";
-import { skuBySlug, pallets, referenceImages, userById, currentModelChain } from "@/mock/data";
+import { skuById, referenceImages, currentModelChain, modelNameFor } from "@/mock/data";
 import { DEFECT_LABELS, DefectType } from "@/mock/types";
 import { PageHeader, SectionHeader, Breadcrumb } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -8,19 +8,18 @@ import { HeroStatsStrip, HeroStat } from "@/components/ui/hero-stats";
 import { Button } from "@/components/ui/button";
 import { useComparisonWindow, comparisonLabel } from "@/components/shell/comparison-window";
 import { hourlySeries, palletsInRange, rangeForWindow, rejectRate, todayRange } from "@/mock/queries";
-import { formatPct, formatRelative, formatDelta, formatDeltaRejectRate } from "@/lib/utils";
+import { formatPct, formatDelta, formatDeltaRejectRate } from "@/lib/utils";
 import { FreshLineChart } from "@/components/charts/line-chart";
 import { Star, Upload, Lock, Info } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
-export default function SkuDetailPage() {
+export default function FoodPassportDetailPage() {
   const params = useParams();
   const cmp = useComparisonWindow();
 
-  const slugParts = Array.isArray(params.slug) ? params.slug : [params.slug as string];
-  const slug = slugParts.join("/");
-  const sku = skuBySlug(slug);
+  const id = (Array.isArray(params.id) ? params.id[0] : params.id) as string;
+  const sku = skuById(id);
 
   const goodRefs = sku ? referenceImages.filter((r) => r.skuId === sku.id && r.type === "good") : [];
   const badRefs = sku ? referenceImages.filter((r) => r.skuId === sku.id && r.type === "bad") : [];
@@ -46,11 +45,22 @@ export default function SkuDetailPage() {
 
   const rrToday = rejectRate(todays);
   const rrCmp = rejectRate(cmpPallets);
-  const disagreements = todays.filter((p) => p.hasDisagreement).length;
+
+  const SUCCESS_CONF_THRESHOLD = 0.98;
+  const successesToday = todays.filter(
+    (p) => p.assisted && !p.requiredMitigation && (p.confidence ?? 0) >= SUCCESS_CONF_THRESHOLD,
+  ).length;
+  const successRateToday = todays.length === 0 ? null : successesToday / todays.length;
+  const totalItemsToday = todays.reduce((sum, p) => sum + (p.itemsDetected ?? 0), 0);
 
   const heroStats: HeroStat[] = [
     {
-      label: "Pallets today",
+      label: "FreshEye Success Rate",
+      value: successRateToday === null ? "—" : formatPct(successRateToday, 1),
+      accent: successRateToday !== null && successRateToday >= 0.9,
+    },
+    {
+      label: "Pallets scanned today",
       value: String(todays.length),
       comparisons: [
         (() => {
@@ -58,6 +68,10 @@ export default function SkuDetailPage() {
           return { arrow: d.arrow, color: d.color, text: `${Math.abs(todays.length - cmpPallets.length)} vs. ${comparisonLabel(cmp)}` };
         })(),
       ],
+    },
+    {
+      label: "Total item count",
+      value: totalItemsToday.toLocaleString(),
     },
     {
       label: "Reject rate today",
@@ -70,28 +84,24 @@ export default function SkuDetailPage() {
         })(),
       ],
     },
-    {
-      label: "Disagreements",
-      value: String(disagreements),
-    },
   ];
 
   const primaryImg = goodRefs.find((r) => r.isPrimary) ?? goodRefs[0];
 
   return (
-    <div className="p-6 flex flex-col gap-8 max-w-[1400px]">
+    <div className="p-6 flex flex-col gap-8 max-w-[1400px] mx-auto">
       {/* Section 1 — Header */}
       <div className="flex flex-col gap-3">
         <Breadcrumb
           items={[
-            { label: "SKUs", href: "/skus" },
+            { label: "Food passports", href: "/food_passport" },
             ...(sku.parentLabel ? [{ label: sku.parentLabel }] : []),
             { label: sku.label },
           ]}
         />
         <div className="flex items-start gap-6">
           {primaryImg && (
-            <div className="shrink-0 border border-border overflow-hidden" style={{ borderRadius: 8 }}>
+            <div className="shrink-0 border border-border overflow-hidden rounded-md">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={primaryImg.url} alt={sku.label} className="block" style={{ width: 192, height: 192, objectFit: "cover" }} />
             </div>
@@ -99,7 +109,7 @@ export default function SkuDetailPage() {
           <div className="flex-1 min-w-0 flex flex-col gap-2">
             <PageHeader
               title={sku.label}
-              subtitle={`${sku.slug} · expected ${sku.expectedCount} ± ${sku.countTolerance} · model chain ${currentModelChain.sku} / ${currentModelChain.count} / ${currentModelChain.defect}`}
+              subtitle={`${sku.slug} · model chain ${currentModelChain.sku} / ${currentModelChain.count} / ${currentModelChain.defect}`}
               actions={
                 <>
                   <StatusPill status={sku.status === "active" ? "active" : sku.status === "inactive" ? "offline" : "neutral"} label={sku.status.replace("_", " ")} />
@@ -124,11 +134,11 @@ export default function SkuDetailPage() {
           <div className="p-4">
             <div className="grid grid-cols-4 gap-2">
               {goodRefs.slice(0, 12).map((r) => (
-                <div key={r.id} className="relative aspect-square overflow-hidden border group" style={{ borderRadius: 6, borderColor: r.isPrimary ? "#6666F6" : "#E4E4E7" }}>
+                <div key={r.id} className="relative aspect-square overflow-hidden border group rounded-md" style={{ borderColor: r.isPrimary ? "#6666F6" : "#E4E4E7" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={r.url} alt={r.caption ?? ""} className="w-full h-full object-cover" />
                   {r.isPrimary && (
-                    <span className="absolute top-1 left-1 flex items-center gap-0.5 px-1 py-0.5 mono text-2xs uppercase bg-accent text-accent-fg" style={{ borderRadius: 6, letterSpacing: "0.04em" }}>
+                    <span className="absolute top-1 left-1 flex items-center gap-0.5 px-1 py-0.5 mono text-2xs uppercase bg-accent text-accent-fg rounded-sm" style={{ letterSpacing: "0.04em" }}>
                       <Star className="w-2.5 h-2.5" strokeWidth={1.75} /> primary
                     </span>
                   )}
@@ -139,7 +149,7 @@ export default function SkuDetailPage() {
                   )}
                 </div>
               ))}
-              <button className="aspect-square border border-dashed border-border flex items-center justify-center text-muted-fg hover:text-foreground hover:border-foreground transition" style={{ borderRadius: 6 }}>
+              <button className="aspect-square border border-dashed border-border flex items-center justify-center text-muted-fg hover:text-foreground hover:border-foreground transition rounded-md">
                 <Upload className="w-4 h-4" strokeWidth={1.5} />
               </button>
             </div>
@@ -162,11 +172,11 @@ export default function SkuDetailPage() {
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   {imgs.map((r) => (
-                    <div key={r.id + defect} className="relative aspect-square overflow-hidden border border-border" style={{ borderRadius: 6 }}>
+                    <div key={r.id + defect} className="relative aspect-square overflow-hidden border border-border rounded-md">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={r.url} alt="" className="w-full h-full object-cover" />
                       {(r.defectTypes?.length ?? 0) > 1 && (
-                        <span className="absolute top-1 right-1 mono text-2xs uppercase bg-background/90 px-1 py-0.5 border border-border" style={{ borderRadius: 6 }}>
+                        <span className="absolute top-1 right-1 mono text-2xs uppercase bg-background/90 px-1 py-0.5 border border-border rounded-sm">
                           +{(r.defectTypes?.length ?? 1) - 1}
                         </span>
                       )}
@@ -190,15 +200,13 @@ export default function SkuDetailPage() {
               <input
                 type="number"
                 defaultValue={sku.expectedCount}
-                className="w-16 h-8 bg-background border border-border px-2 text-sm mono tabular text-center outline-none focus:border-foreground transition"
-                style={{ borderRadius: 6 }}
+                className="w-16 h-8 bg-background border border-border px-2 text-sm mono tabular text-center outline-none focus:border-foreground transition rounded-md"
               />
               <span className="text-sm text-muted-fg">± tolerance:</span>
               <input
                 type="number"
                 defaultValue={sku.countTolerance}
-                className="w-16 h-8 bg-background border border-border px-2 text-sm mono tabular text-center outline-none focus:border-foreground transition"
-                style={{ borderRadius: 6 }}
+                className="w-16 h-8 bg-background border border-border px-2 text-sm mono tabular text-center outline-none focus:border-foreground transition rounded-md"
               />
             </div>
             <p className="mt-3 text-xs text-muted-fg">
@@ -209,8 +217,7 @@ export default function SkuDetailPage() {
             <h3 className="label mb-3">Defect rubric (freeform)</h3>
             <textarea
               defaultValue={sku.defectRubricFreeform}
-              className="w-full min-h-[80px] bg-background border border-border px-2 py-2 text-sm outline-none focus:border-foreground transition"
-              style={{ borderRadius: 6 }}
+              className="w-full min-h-[80px] bg-background border border-border px-2 py-2 text-sm outline-none focus:border-foreground transition rounded-md"
             />
           </div>
         </div>
@@ -218,14 +225,14 @@ export default function SkuDetailPage() {
         <div className="px-4 pb-4">
           <div className="flex items-center gap-2 mb-3">
             <h3 className="label">Structured defect thresholds</h3>
-            <span className="flex items-center gap-1 px-1.5 py-0.5 mono text-2xs uppercase text-muted-fg border border-border" style={{ borderRadius: 6, letterSpacing: "0.04em" }}>
+            <span className="flex items-center gap-1 px-1.5 py-0.5 mono text-2xs uppercase text-muted-fg border border-border rounded-sm" style={{ letterSpacing: "0.04em" }}>
               <Lock className="w-2.5 h-2.5" strokeWidth={1.5} /> super admin only
             </span>
           </div>
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                {["Defect type", "Severity", "Threshold", ""].map((h) => (
+                {["Defect type", "Model", "Threshold", ""].map((h) => (
                   <th key={h} className="label text-left px-3 py-2 font-medium">{h}</th>
                 ))}
               </tr>
@@ -234,12 +241,7 @@ export default function SkuDetailPage() {
               {sku.defectRubricStructured.map((r, i) => (
                 <tr key={i} className="border-b border-border last:border-b-0">
                   <td className="px-3 py-2 text-sm">{DEFECT_LABELS[r.type]}</td>
-                  <td className="px-3 py-2">
-                    <StatusPill
-                      status={r.severity === "reject_on_any" ? "reject" : "warning"}
-                      label={r.severity === "reject_on_any" ? "Reject" : "Warning"}
-                    />
-                  </td>
+                  <td className="px-3 py-2 mono text-xs text-foreground">{modelNameFor(r.type, sku.parentSlug ?? sku.slug)}</td>
                   <td className="px-3 py-2 mono tabular text-sm">{r.thresholdMm ? `≥ ${r.thresholdMm}mm` : "—"}</td>
                   <td className="px-3 py-2 text-right">
                     <Lock className="inline w-3 h-3 text-muted-fg" strokeWidth={1.5} />
@@ -249,12 +251,12 @@ export default function SkuDetailPage() {
             </tbody>
           </table>
 
-          <div className="mt-3 flex items-start gap-2 p-3 bg-subtle border border-border" style={{ borderRadius: 8 }}>
+          <div className="mt-3 flex items-start gap-2 p-3 bg-subtle border border-border rounded-md">
             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-muted-fg" strokeWidth={1.5} />
             <div className="flex-1 text-xs">
               <div className="font-medium text-foreground">Rubric editing coming soon</div>
               <div className="text-muted-fg mt-0.5 mono text-2xs uppercase" style={{ letterSpacing: "0.04em" }}>
-                open item · requires client discussion · who edits structured rubric, whether taxonomy is global or per-SKU
+                open item · requires client discussion · who edits structured rubric, whether taxonomy is global or per-passport
               </div>
             </div>
           </div>
@@ -263,9 +265,6 @@ export default function SkuDetailPage() {
 
       {/* Section 4 — Performance */}
       <PerformanceSection skuId={sku.id} cmp={cmp} />
-
-      {/* Section 5 — Recent activity */}
-      <RecentActivityTable skuId={sku.id} />
     </div>
   );
 }
@@ -274,21 +273,18 @@ function PerformanceSection({ skuId, cmp }: { skuId: string; cmp: ReturnType<typ
   const today = todayRange();
   const series = hourlySeries(today.from, today.to, skuId);
 
-  // Reject rate per hour
   const rrData = series.map((b) => ({
     hour: b.hour,
     rate: b.total === 0 ? 0 : b.rejects / b.total,
     _total: b.total,
   }));
 
-  // Disagreement rate per hour
   const drData = series.map((b) => ({
     hour: b.hour,
     model_reject_op_accept: b.total === 0 ? 0 : b.disagreeMR / b.total,
     model_accept_op_reject: b.total === 0 ? 0 : b.disagreeRA / b.total,
   }));
 
-  // Low-confidence rate
   const lcData = series.map((b) => ({
     hour: b.hour,
     rate: b.total === 0 ? 0 : b.lowConf / b.total,
@@ -301,7 +297,6 @@ function PerformanceSection({ skuId, cmp }: { skuId: string; cmp: ReturnType<typ
     return { total: lows.length || totalLow, rejected, accepted };
   })();
 
-  // 7d avg baseline for reject-rate reference line
   const cmpRange = rangeForWindow("7d_avg");
   const baseline = rejectRate(palletsInRange(cmpRange, skuId));
 
@@ -344,7 +339,7 @@ function PerformanceSection({ skuId, cmp }: { skuId: string; cmp: ReturnType<typ
 
         <div className="grid grid-cols-2 gap-4">
           <div className="card">
-            <SectionHeader title="Disagreement rate" />
+            <SectionHeader title="Required mitigation rate" />
             <div className="p-4">
               <FreshLineChart
                 data={drData}
@@ -375,7 +370,7 @@ function PerformanceSection({ skuId, cmp }: { skuId: string; cmp: ReturnType<typ
                 yFormatter={pctFmt}
                 yDomain={[0, "auto"]}
               />
-              <div className="mt-3 p-2 border border-border bg-subtle" style={{ borderRadius: 6 }}>
+              <div className="mt-3 p-2 border border-border bg-subtle rounded-md">
                 <div className="mono text-xs text-foreground tabular">
                   {lowByTerminal.total} low-conf pallets today · <span className="text-status-red">{lowByTerminal.rejected} rejected</span> · <span className="text-status-green">{lowByTerminal.accepted} accepted</span>
                 </div>
@@ -388,53 +383,3 @@ function PerformanceSection({ skuId, cmp }: { skuId: string; cmp: ReturnType<typ
   );
 }
 
-function RecentActivityTable({ skuId }: { skuId: string }) {
-  const rows = useMemo(() => {
-    return pallets
-      .filter((p) => p.skuId === skuId)
-      .sort((a, b) => +new Date(b.startedAt) - +new Date(a.startedAt))
-      .slice(0, 20);
-  }, [skuId]);
-
-  return (
-    <section className="card">
-      <SectionHeader
-        title="Recent pallets"
-        actions={<Link href={`/images?sku=${skuId}`} className="mono text-2xs uppercase text-muted-fg hover:text-accent">see all →</Link>}
-      />
-      <table className="w-full">
-        <thead>
-          <tr className="border-b border-border">
-            {["", "Time", "Verdict", "Confidence", "Operator", "Flags"].map((h, i) => (
-              <th key={i} className="label text-left px-3 py-2 font-medium">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((p) => {
-            const op = userById(p.operatorId);
-            return (
-              <tr key={p.id} className="border-b border-border last:border-b-0 hover:bg-subtle transition">
-                <td className="px-3 py-2 w-10">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`https://picsum.photos/seed/${p._imageSeed}-f0/64/64`} alt="" className="w-8 h-8 object-cover border border-border" style={{ borderRadius: 6 }} />
-                </td>
-                <td className="px-3 py-2 mono tabular text-sm text-muted-fg">{formatRelative(p.startedAt)}</td>
-                <td className="px-3 py-2">
-                  <StatusPill status={p.finalVerdict as any} />
-                </td>
-                <td className="px-3 py-2 mono tabular text-sm">{p.confidence ? formatPct(p.confidence, 0) : "—"}</td>
-                <td className="px-3 py-2 text-sm">{op?.displayName ?? "—"}</td>
-                <td className="px-3 py-2 flex items-center gap-1">
-                  {p.hasDisagreement && <span className="mono text-2xs uppercase text-status-amber" title="Disagreement">⚑</span>}
-                  {p.countMismatch && <span className="mono text-2xs uppercase text-status-amber" title="Count mismatch">#</span>}
-                  {!p.assisted && <span className="mono text-2xs uppercase text-status-gray" title="Unassisted">∅</span>}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </section>
-  );
-}

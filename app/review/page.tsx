@@ -10,24 +10,24 @@ import { formatPct, formatRelative } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { useMemo } from "react";
 
-type Tab = "unassisted" | "low" | "disagree";
+type Tab = "unknownSku" | "low" | "mitigation";
 
 const TABS: { id: Tab; label: string; hint: string }[] = [
-  { id: "unassisted", label: "Unassisted", hint: "Pallets the classifier couldn't identify. Assign a SKU or exclude." },
+  { id: "unknownSku", label: "Unknown SKU", hint: "Pallets the classifier couldn't identify. Assign a SKU or exclude." },
   { id: "low", label: "Low-confidence", hint: "SKU known, defect call uncertain. Confirm or reject." },
-  { id: "disagree", label: "Disagreements", hint: "Operator voice-overrode the model. Confirm override or flag regression." },
+  { id: "mitigation", label: "Required mitigation", hint: "Operator voice-overrode the model. Confirm override or flag regression." },
 ];
 
 export default function ReviewPage() {
   const sp = useSearchParams();
   const router = useRouter();
-  const tab: Tab = (sp.get("tab") as Tab) ?? "unassisted";
+  const tab: Tab = (sp.get("tab") as Tab) ?? "unknownSku";
   const counts = reviewQueueCounts();
 
   const items = useMemo(() => {
-    if (tab === "unassisted") return pallets.filter((p) => !p.skuId);
+    if (tab === "unknownSku") return pallets.filter((p) => !p.skuId);
     if (tab === "low") return pallets.filter((p) => p.finalVerdict === "low_confidence");
-    return pallets.filter((p) => p.hasDisagreement);
+    return pallets.filter((p) => p.requiredMitigation);
   }, [tab]);
 
   const setTab = (id: Tab) => {
@@ -43,7 +43,7 @@ export default function ReviewPage() {
       {/* Tabs */}
       <div className="flex items-stretch border-b border-border">
         {TABS.map((t) => {
-          const n = t.id === "unassisted" ? counts.unassisted : t.id === "low" ? counts.lowConf : counts.disagreements;
+          const n = t.id === "unknownSku" ? counts.unknownSku : t.id === "low" ? counts.lowConf : counts.requiredMitigation;
           const active = tab === t.id;
           return (
             <button
@@ -84,7 +84,7 @@ export default function ReviewPage() {
 
       <div className="card p-3 bg-subtle mono text-2xs uppercase text-muted-fg flex items-center gap-4" style={{ letterSpacing: "0.04em" }}>
         <span>keyboard shortcuts:</span>
-        {tab === "unassisted" && (
+        {tab === "unknownSku" && (
           <>
             <Kbd>A</Kbd> assign
             <Kbd>N</Kbd> new SKU
@@ -99,7 +99,7 @@ export default function ReviewPage() {
             <Kbd>X</Kbd> exclude
           </>
         )}
-        {tab === "disagree" && (
+        {tab === "mitigation" && (
           <>
             <Kbd>C</Kbd> confirm override
             <Kbd>F</Kbd> flag regression
@@ -135,7 +135,7 @@ function ReviewCard({ pallet, tab }: { pallet: typeof pallets[number]; tab: Tab 
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="mono text-2xs text-muted-fg uppercase truncate" style={{ letterSpacing: "0.04em" }}>{pallet.id}</div>
-            {tab === "unassisted" ? (
+            {tab === "unknownSku" ? (
               <div className="text-sm text-muted-fg">Model guess: <span className="text-foreground mono">—</span></div>
             ) : (
               <div className="text-sm">
@@ -150,7 +150,7 @@ function ReviewCard({ pallet, tab }: { pallet: typeof pallets[number]; tab: Tab 
         </div>
 
         <div className="flex items-center gap-2 text-xs">
-          {tab === "disagree" && (
+          {tab === "mitigation" && (
             <>
               <span className="text-muted-fg">model</span>
               <StatusPill status={pallet.modelVerdict as any} />
@@ -159,7 +159,7 @@ function ReviewCard({ pallet, tab }: { pallet: typeof pallets[number]; tab: Tab 
             </>
           )}
           {tab === "low" && <StatusPill status="low_confidence" />}
-          {tab === "unassisted" && <StatusPill status="unassisted" />}
+          {tab === "unknownSku" && <StatusPill status="unknownSku" />}
         </div>
 
         <div className="mono text-2xs text-muted-fg uppercase flex items-center gap-2 mt-auto" style={{ letterSpacing: "0.04em" }}>
@@ -169,7 +169,7 @@ function ReviewCard({ pallet, tab }: { pallet: typeof pallets[number]; tab: Tab 
         </div>
 
         <div className="flex items-center gap-2 pt-2 border-t border-border">
-          {tab === "unassisted" && (
+          {tab === "unknownSku" && (
             <>
               <Select className="flex-1" defaultValue="">
                 <option value="" disabled>Assign to SKU…</option>
@@ -189,7 +189,7 @@ function ReviewCard({ pallet, tab }: { pallet: typeof pallets[number]; tab: Tab 
               <Button variant="ghost" size="sm">Exclude</Button>
             </>
           )}
-          {tab === "disagree" && (
+          {tab === "mitigation" && (
             <>
               <Button variant="accent" size="sm">Confirm override</Button>
               <Button variant="outline" size="sm">Flag regression</Button>

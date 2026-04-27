@@ -1,12 +1,12 @@
 import { cn } from "@/lib/utils";
 
-export type PillStatus = "accept" | "reject" | "low_confidence" | "unassisted" | "healthy" | "warning" | "critical" | "neutral" | "active" | "offline" | "degraded";
+export type PillStatus = "accept" | "reject" | "low_confidence" | "unknownSku" | "healthy" | "warning" | "critical" | "neutral" | "active" | "offline" | "degraded";
 
 const PALETTE: Record<string, { bg: string; fg: string; dot: string; label: string }> = {
   accept: { bg: "#10B981", fg: "#FFFFFF", dot: "#10B981", label: "Accept" },
   reject: { bg: "#EF4444", fg: "#FFFFFF", dot: "#EF4444", label: "Reject" },
   low_confidence: { bg: "#F59E0B", fg: "#FFFFFF", dot: "#F59E0B", label: "Low-conf" },
-  unassisted: { bg: "#A1A1AA", fg: "#FFFFFF", dot: "#A1A1AA", label: "Unassisted" },
+  unknownSku: { bg: "#A1A1AA", fg: "#FFFFFF", dot: "#A1A1AA", label: "Unknown SKU" },
   healthy: { bg: "#10B981", fg: "#FFFFFF", dot: "#10B981", label: "Healthy" },
   warning: { bg: "#F59E0B", fg: "#FFFFFF", dot: "#F59E0B", label: "Warning" },
   critical: { bg: "#EF4444", fg: "#FFFFFF", dot: "#EF4444", label: "Critical" },

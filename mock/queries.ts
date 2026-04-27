@@ -7,8 +7,10 @@ import {
   voiceEvents,
   serviceHealth,
   skuById,
+  modelNameFor,
+  singleThumb,
 } from "./data";
-import { ComparisonWindow, Pallet, Verdict } from "./types";
+import { ComparisonWindow, ItemModelRun, Pallet, PalletItem, Verdict } from "./types";
 
 const DAY = 86_400_000;
 
@@ -115,7 +117,7 @@ export function hourlySeries(
     if (p.finalVerdict === "reject") b.rejects++;
     if (p.finalVerdict === "accept") b.accepts++;
     if (p.finalVerdict === "low_confidence") b.lowConf++;
-    if (p.hasDisagreement) {
+    if (p.requiredMitigation) {
       // disagree types
       if (p.modelVerdict === "reject" && p.finalVerdict === "accept") b.disagreeMR++;
       if (p.modelVerdict === "accept" && p.finalVerdict === "reject") b.disagreeRA++;
@@ -130,10 +132,10 @@ export function hourlySeries(
 // ──────────────── Review-queue counts ────────────────
 
 export function reviewQueueCounts() {
-  const unassisted = pallets.filter((p) => !p.skuId).length;
+  const unknownSku = pallets.filter((p) => !p.skuId).length;
   const lowConf = pallets.filter((p) => p.finalVerdict === "low_confidence").length;
-  const disagreements = pallets.filter((p) => p.hasDisagreement).length;
-  return { unassisted, lowConf, disagreements };
+  const requiredMitigation = pallets.filter((p) => p.requiredMitigation).length;
+  return { unknownSku, lowConf, requiredMitigation };
 }
 
 // ──────────────── Dashboard live stats ────────────────
@@ -173,7 +175,7 @@ export interface ImageFilters {
   dateRange?: "today" | "yesterday" | "7d" | "30d" | "all";
   confMin?: number;
   confMax?: number;
-  hasDisagreement?: boolean;
+  requiredMitigation?: boolean;
   countMismatch?: boolean;
   assisted?: "assisted" | "unassisted" | "all";
   tagSearch?: string;
@@ -201,7 +203,7 @@ export function filterPallets(f: ImageFilters): Pallet[] {
   if (f.operatorIds && f.operatorIds.length) list = list.filter((p) => f.operatorIds!.includes(p.operatorId));
   if (f.confMin !== undefined) list = list.filter((p) => (p.confidence ?? 0) >= f.confMin!);
   if (f.confMax !== undefined) list = list.filter((p) => (p.confidence ?? 1) <= f.confMax!);
-  if (f.hasDisagreement) list = list.filter((p) => p.hasDisagreement);
+  if (f.requiredMitigation) list = list.filter((p) => p.requiredMitigation);
   if (f.countMismatch) list = list.filter((p) => p.countMismatch);
   if (f.assisted === "assisted") list = list.filter((p) => p.assisted);
   if (f.assisted === "unassisted") list = list.filter((p) => !p.assisted);
@@ -226,4 +228,72 @@ export function framesForPallet(palletId: string) {
 
 export function voiceEventsForPallet(palletId: string) {
   return voiceEvents.filter((v) => v.palletId === palletId);
+}
+
+// Deterministic 0..1 hash of an arbitrary key. Used for per-item RNG.
+function hash01(key: string): number {
+  let h = 2166136261 | 0;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 1_000_000) / 1_000_000;
+}
+
+// Per-pallet, per-item inspection results. Each item runs every defect model
+// from the SKU's structured rubric. Confidence is "probability defect is
+// present"; a low value means the model is confident the item is clean. If
+// the pallet's defectBreakdown reports N items with a given defect, exactly
+// N items are flagged positive for that defect (deterministic by pallet id).
+export function itemsForPallet(palletId: string): PalletItem[] {
+  const pallet = pallets.find((p) => p.id === palletId);
+  if (!pallet || !pallet.skuId) return [];
+  const sku = skuById(pallet.skuId);
+  if (!sku) return [];
+
+  const count = pallet.itemsDetected ?? sku.expectedCount;
+  if (count <= 0) return [];
+
+  const rubric = sku.defectRubricStructured;
+  const slug = sku.parentSlug ?? sku.slug;
+
+  // Pick which item indices are positive for each defect, drawn from the
+  // pallet's defectBreakdown so totals match what the rest of the UI shows.
+  const positivesByDefect = new Map<string, Set<number>>();
+  if (pallet.defectBreakdown) {
+    for (const [defect, n] of Object.entries(pallet.defectBreakdown)) {
+      const set = new Set<number>();
+      let attempts = 0;
+      while (set.size < (n ?? 0) && attempts < count * 4) {
+        const idx = Math.floor(hash01(`${pallet.id}:${defect}:${attempts}`) * count);
+        set.add(idx);
+        attempts++;
+      }
+      positivesByDefect.set(defect, set);
+    }
+  }
+
+  const items: PalletItem[] = [];
+  for (let i = 0; i < count; i++) {
+    const modelRuns: ItemModelRun[] = rubric.map((rule) => {
+      const positives = positivesByDefect.get(rule.type);
+      const isPositive = positives?.has(i) ?? false;
+      const noise = hash01(`${pallet.id}:${i}:${rule.type}`) * 0.1;
+      const confidence = isPositive ? 0.86 + noise : 0.03 + noise;
+      return {
+        modelName: modelNameFor(rule.type, slug),
+        defectType: rule.type,
+        confidence,
+        detected: confidence >= 0.5,
+      };
+    });
+    items.push({
+      id: `${pallet.id}_item_${String(i + 1).padStart(2, "0")}`,
+      palletId: pallet.id,
+      index: i + 1,
+      cropUrl: singleThumb(pallet.skuId, `${pallet.id}-${i}`),
+      modelRuns,
+    });
+  }
+  return items;
 }

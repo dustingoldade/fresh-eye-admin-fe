@@ -1,6 +1,6 @@
 export type Role = "super_admin" | "tenant_admin" | "tenant_user";
 
-export type Verdict = "accept" | "reject" | "low_confidence" | "unassisted";
+export type Verdict = "accept" | "reject" | "low_confidence" | "unknownSku";
 
 export type DefectType =
   | "mold"
@@ -103,7 +103,7 @@ export interface Pallet {
   confidence?: number;
   itemsDetected?: number;
   countMismatch: boolean;
-  hasDisagreement: boolean;
+  requiredMitigation: boolean;
   startedAt: string;
   closedAt?: string;
   representativeFrameId?: string;
@@ -132,6 +132,23 @@ export interface Inference {
   output: unknown;
   confidence?: number;
   latencyMs: number;
+}
+
+export interface ItemModelRun {
+  modelName: string;
+  defectType: DefectType;
+  // Probability the defect is present on this item (0..1).
+  confidence: number;
+  // True when confidence crosses the detection threshold (0.5).
+  detected: boolean;
+}
+
+export interface PalletItem {
+  id: string;
+  palletId: string;
+  index: number; // 1-based index within the pallet
+  cropUrl: string;
+  modelRuns: ItemModelRun[];
 }
 
 export interface VoiceEvent {

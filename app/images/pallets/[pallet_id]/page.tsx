@@ -1,11 +1,11 @@
 "use client";
 import { notFound, useParams, useRouter } from "next/navigation";
-import { pallets, userById, skuById, deviceById, inferences, currentModelChain } from "@/mock/data";
-import { framesForPallet, voiceEventsForPallet } from "@/mock/queries";
+import { pallets, userById, skuById, deviceById, inferences, currentModelChain, palletThumb } from "@/mock/data";
+import { framesForPallet, itemsForPallet, voiceEventsForPallet } from "@/mock/queries";
 import { PageHeader, SectionHeader } from "@/components/ui/page-header";
 import { StatusPill } from "@/components/ui/status-pill";
 import { Button } from "@/components/ui/button";
-import { formatAbsolute, formatPct, formatRelative } from "@/lib/utils";
+import { cn, formatAbsolute, formatPct, formatRelative } from "@/lib/utils";
 import { DEFECT_LABELS, DefectType } from "@/mock/types";
 import { ArrowLeft, ToggleLeft, ToggleRight } from "lucide-react";
 import { useState } from "react";
@@ -25,6 +25,8 @@ export default function PalletDetailPage() {
   const frames = framesForPallet(pallet.id);
   const voices = voiceEventsForPallet(pallet.id);
   const inf = inferences.filter((i) => i.palletId === pallet.id);
+  const items = itemsForPallet(pallet.id);
+  const detectedAny = items.filter((it) => it.modelRuns.some((r) => r.detected)).length;
 
   return (
     <div className="p-6 flex flex-col gap-6 max-w-[1200px]">
@@ -33,12 +35,12 @@ export default function PalletDetailPage() {
         className="flex items-center gap-1 mono text-xs text-muted-fg hover:text-foreground uppercase transition"
         style={{ letterSpacing: "0.04em" }}
       >
-        <ArrowLeft className="w-3 h-3" strokeWidth={1.5} /> Back to Image Register
+        <ArrowLeft className="w-3 h-3" strokeWidth={1.5} /> Back to Scanned Pallets
       </button>
 
       <PageHeader
         title={`Pallet ${pallet.id}`}
-        subtitle={`${sku?.label ?? "unassisted"} · ${op?.displayName ?? "—"} · ${device?.nickname ?? "—"} · captured ${formatAbsolute(pallet.startedAt)}`}
+        subtitle={`${sku?.label ?? "unknown SKU"} · ${op?.displayName ?? "—"} · ${device?.nickname ?? "—"} · captured ${formatAbsolute(pallet.startedAt)}`}
         actions={<StatusPill status={pallet.finalVerdict as any} variant="filled" />}
       />
 
@@ -59,7 +61,7 @@ export default function PalletDetailPage() {
           <div className="relative mx-auto max-w-3xl aspect-[3/2] border border-border overflow-hidden bg-background" style={{ borderRadius: 6 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`https://picsum.photos/seed/${pallet._imageSeed}-f0/1200/800`}
+              src={palletThumb(pallet.skuId, pallet._imageSeed)}
               alt=""
               className="w-full h-full object-cover"
             />
@@ -124,9 +126,9 @@ export default function PalletDetailPage() {
           <VerdictRow label="Model said" pill={pallet.modelVerdict as any} detail={pallet.confidence ? `${formatPct(pallet.confidence, 0)} confidence` : "—"} />
           <VerdictRow label="Operator action" pill={pallet.finalVerdict as any} detail={pallet.finalVerdict === pallet.modelVerdict ? "confirmed" : "override"} />
           <VerdictRow
-            label="Disagreement"
-            pill={pallet.hasDisagreement ? "warning" : "active"}
-            detail={pallet.hasDisagreement ? "model vs operator" : "no"}
+            label="Required mitigation"
+            pill={pallet.requiredMitigation ? "warning" : "active"}
+            detail={pallet.requiredMitigation ? "operator intervened" : "no"}
           />
         </div>
       </section>
@@ -144,7 +146,7 @@ export default function PalletDetailPage() {
           </thead>
           <tbody>
             {inf.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-muted-fg">No inference data (unassisted pallet).</td></tr>
+              <tr><td colSpan={5} className="px-4 py-6 text-center text-sm text-muted-fg">No inference data (unknown SKU).</td></tr>
             ) : (
               inf.map((i) => (
                 <tr key={i.id} className="border-b border-border last:border-b-0">
@@ -158,6 +160,77 @@ export default function PalletDetailPage() {
             )}
           </tbody>
         </table>
+      </section>
+
+      {/* Per-item inspection */}
+      <section className="card">
+        <SectionHeader
+          title={`Per-item inspection · ${items.length} item${items.length === 1 ? "" : "s"}`}
+          actions={
+            items.length > 0 ? (
+              <span className="mono text-2xs uppercase text-muted-fg" style={{ letterSpacing: "0.04em" }}>
+                {detectedAny} flagged · {items.length - detectedAny} clean
+              </span>
+            ) : undefined
+          }
+        />
+        {items.length === 0 ? (
+          <div className="p-8 text-center text-sm text-muted-fg">
+            No per-item inspection — SKU was not identified.
+          </div>
+        ) : (
+          <div className="p-4 flex flex-col gap-3">
+            {items.map((item) => {
+              const flagged = item.modelRuns.some((r) => r.detected);
+              return (
+                <div
+                  key={item.id}
+                  className="border rounded-md p-3 flex items-center gap-4"
+                  style={{
+                    borderColor: flagged ? "rgba(239,68,68,0.4)" : undefined,
+                    background: flagged ? "rgba(239,68,68,0.05)" : undefined,
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.cropUrl}
+                    alt=""
+                    className="w-20 h-20 object-cover border border-border rounded shrink-0"
+                  />
+                  <div className="w-24 shrink-0 flex flex-col gap-1">
+                    <span className="mono text-2xs uppercase text-muted-fg" style={{ letterSpacing: "0.04em" }}>
+                      Item {item.index}
+                    </span>
+                    {flagged ? <StatusPill status="reject" /> : <StatusPill status="accept" />}
+                  </div>
+                  <ul className="flex-1 min-w-0 grid grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1">
+                    {item.modelRuns.map((run) => (
+                      <li key={run.modelName} className="flex items-center justify-between gap-2 text-xs min-w-0">
+                        <span
+                          className={cn(
+                            "mono truncate",
+                            run.detected ? "text-status-red font-medium" : "text-muted-fg"
+                          )}
+                          title={run.modelName}
+                        >
+                          {run.modelName}
+                        </span>
+                        <span
+                          className={cn(
+                            "mono tabular shrink-0",
+                            run.detected ? "text-status-red font-medium" : "text-muted-fg"
+                          )}
+                        >
+                          {formatPct(run.confidence, 0)}
+                        </span>
+                        </li>
+                      ))}
+                    </ul>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* Voice events */}

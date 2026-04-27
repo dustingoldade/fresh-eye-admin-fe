@@ -5,13 +5,8 @@ import { cn } from "@/lib/utils";
 import {
   Activity,
   Boxes,
-  ClipboardList,
-  ImageIcon,
-  MonitorSmartphone,
-  LineChart,
-  Users,
-  Settings,
-  AlertTriangle,
+  ScanLine,
+  BookOpen,
   Building2,
   Heart,
   DollarSign,
@@ -31,14 +26,9 @@ interface NavItem {
 
 const TENANT_NAV: NavItem[] = [
   { href: "/", label: "overview", icon: Activity },
-  { href: "/skus", label: "skus", icon: Boxes },
-  { href: "/review", label: "review queue", icon: ClipboardList },
-  { href: "/images", label: "image register", icon: ImageIcon },
-  { href: "/devices", label: "devices", icon: MonitorSmartphone },
-  { href: "/performance", label: "performance", icon: LineChart, stub: true },
-  { href: "/operators", label: "operators", icon: Users, stub: true },
-  { href: "/settings", label: "settings", icon: Settings, stub: true },
-  { href: "/alerts", label: "alerts", icon: AlertTriangle, stub: true },
+  { href: "/food_passport", label: "food passports", icon: Boxes },
+  { href: "/images/pallets", label: "scanned pallets", icon: ScanLine },
+  { href: "/glossary", label: "glossary", icon: BookOpen },
 ];
 
 const SUPER_NAV: NavItem[] = [

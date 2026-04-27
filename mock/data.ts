@@ -31,8 +31,11 @@ const rng = mulberry32(20260424);
 const pick = <T>(arr: T[]): T => arr[Math.floor(rng() * arr.length)];
 const pickN = (n: number): number => Math.floor(rng() * n);
 
-// Anchor "now" at module load so all timestamps are derived from one instant.
-export const NOW = new Date();
+// Pinned anchor for deterministic mock data. Using `new Date()` here drifts
+// between SSR and client hydration (server captures dev-server boot time,
+// client captures page-open time) and causes hydration mismatches in counts
+// and ranges. Bump this occasionally to keep the demo feeling current.
+export const NOW = new Date("2026-04-27T15:00:00.000Z");
 const startOfDay = (d: Date) => {
   const c = new Date(d);
   c.setHours(0, 0, 0, 0);
@@ -93,42 +96,45 @@ export const skus: SKU[] = [
     ],
   },
   {
-    id: "sku_spinach",
+    id: "sku_carrot",
     tenantId: TENANT_ID,
-    slug: "leafy/baby-spinach",
-    parentSlug: "leafy",
-    parentLabel: "Leafy greens",
-    label: "Baby Spinach",
+    slug: "root/carrot",
+    parentSlug: "root",
+    parentLabel: "Root vegetables",
+    label: "Carrot",
     status: "active",
-    representativeImageId: "ref_spinach_primary",
-    expectedCount: 120,
-    countTolerance: 8,
+    representativeImageId: "ref_carrot_primary",
+    expectedCount: 80,
+    countTolerance: 5,
     defectRubricFreeform:
-      "Reject pallets with wilted or slimy leaves above ~10% of surface. Yellowing tips are warning. Any foreign matter (stems, grass, insects) triggers reject.",
+      "Reject any pallet with visible mold or rot at the crown. Cracks longer than ~20mm are reject. Greening at the shoulder is warning. Foreign matter (stems, soil clumps, debris) triggers reject if obvious.",
     defectRubricStructured: [
       { type: "mold", severity: "reject_on_any" },
+      { type: "crack", severity: "reject_on_any", thresholdMm: 20 },
+      { type: "soft_spot", severity: "warning" },
       { type: "off_color", severity: "warning" },
-      { type: "pest_damage", severity: "reject_on_any" },
       { type: "foreign_object", severity: "reject_on_any" },
     ],
   },
   {
-    id: "sku_avocado",
+    id: "sku_bell_pepper",
     tenantId: TENANT_ID,
-    slug: "stone-fruit/hass-avocado",
-    parentSlug: "stone-fruit",
-    parentLabel: "Stone fruit",
-    label: "Hass Avocado",
+    slug: "pepper/bell",
+    parentSlug: "pepper",
+    parentLabel: "Peppers",
+    label: "Bell Pepper",
     status: "active",
-    representativeImageId: "ref_avocado_primary",
-    expectedCount: 24,
-    countTolerance: 1,
+    representativeImageId: "ref_bell_pepper_primary",
+    expectedCount: 28,
+    countTolerance: 2,
     defectRubricFreeform:
-      "Bruising is the primary defect. Reject if more than 2 fruits show deep bruising or any fruit has broken skin with visible flesh.",
+      "Reject pallets with any visible mold or stem-end rot. Bruising on more than 2 fruits is reject; light bruising on a single pepper is warning. Cracks with exposed flesh are reject. Off-color (early yellowing on red varieties) is warning.",
     defectRubricStructured: [
-      { type: "bruise", severity: "reject_on_any", thresholdMm: 15 },
+      { type: "mold", severity: "reject_on_any" },
+      { type: "bruise", severity: "reject_on_any", thresholdMm: 12 },
       { type: "soft_spot", severity: "warning" },
       { type: "crack", severity: "reject_on_any" },
+      { type: "off_color", severity: "warning" },
     ],
   },
 ];
@@ -137,70 +143,170 @@ export const skus: SKU[] = [
 
 const refImgSeeds = {
   sku_roma: {
-    good: ["roma-a", "roma-b", "roma-c", "roma-d", "roma-e", "roma-f"],
+    good: ["roma-a"],
     bad: [
       { seed: "roma-mold-1", defects: ["mold"] as DefectType[] },
-      { seed: "roma-mold-2", defects: ["mold"] as DefectType[] },
-      { seed: "roma-mold-3", defects: ["mold", "soft_spot"] as DefectType[] },
-      { seed: "roma-soft-1", defects: ["soft_spot"] as DefectType[] },
-      { seed: "roma-soft-2", defects: ["soft_spot"] as DefectType[] },
+      { seed: "roma-bruise-1", defects: ["bruise"] as DefectType[] },
       { seed: "roma-crack-1", defects: ["crack"] as DefectType[] },
-      { seed: "roma-crack-2", defects: ["crack"] as DefectType[] },
-      { seed: "roma-off-1", defects: ["off_color"] as DefectType[] },
     ],
   },
-  sku_spinach: {
-    good: ["spinach-a", "spinach-b", "spinach-c", "spinach-d"],
+  sku_carrot: {
+    good: ["carrot-a"],
     bad: [
-      { seed: "spinach-wilt-1", defects: ["off_color"] as DefectType[] },
-      { seed: "spinach-wilt-2", defects: ["off_color"] as DefectType[] },
-      { seed: "spinach-pest-1", defects: ["pest_damage"] as DefectType[] },
-      { seed: "spinach-foreign-1", defects: ["foreign_object"] as DefectType[] },
-      { seed: "spinach-mold-1", defects: ["mold"] as DefectType[] },
+      { seed: "carrot-bruise-1", defects: ["bruise"] as DefectType[] },
+      { seed: "carrot-mold-1", defects: ["mold"] as DefectType[] },
     ],
   },
-  sku_avocado: {
-    good: ["avo-a", "avo-b", "avo-c", "avo-d", "avo-e"],
+  sku_bell_pepper: {
+    good: ["bell-a", "bell-b"],
     bad: [
-      { seed: "avo-bruise-1", defects: ["bruise"] as DefectType[] },
-      { seed: "avo-bruise-2", defects: ["bruise"] as DefectType[] },
-      { seed: "avo-bruise-3", defects: ["bruise", "soft_spot"] as DefectType[] },
-      { seed: "avo-crack-1", defects: ["crack"] as DefectType[] },
+      { seed: "bell-mold-1", defects: ["mold"] as DefectType[] },
+      { seed: "bell-mold-2", defects: ["mold"] as DefectType[] },
+      { seed: "bell-mold-3", defects: ["mold"] as DefectType[] },
+      { seed: "bell-crack-1", defects: ["crack"] as DefectType[] },
+      { seed: "bell-soft-1", defects: ["soft_spot"] as DefectType[] },
     ],
   },
 };
 
 const refCaptions: Record<string, string> = {
   "roma-a": "Ideal crate — even color, firm fruit.",
-  "roma-b": "Top-layer reference — packed tight.",
   "roma-mold-1": "Stem-end mold — immediate reject.",
-  "spinach-wilt-1": "Early wilt — warning, not reject.",
-  "avo-bruise-1": "Deep pressure bruising from transit.",
+  "roma-bruise-1": "Pressure bruising — broken skin, reject.",
+  "roma-crack-1": "Longitudinal crack with exposed flesh — reject.",
+  "carrot-a": "Uniform pack — clean shoulders, no greening.",
+  "carrot-bruise-1": "Surface bruising and skin damage.",
+  "carrot-mold-1": "White mold at the crown — immediate reject.",
+  "bell-a": "Tight pack — firm, even color.",
+  "bell-b": "Mixed-color box — peppers and stems intact.",
+  "bell-mold-1": "Stem-end mold — immediate reject.",
+  "bell-mold-2": "Surface mold blooming on the shoulder.",
+  "bell-mold-3": "Advanced mold across the cap — reject.",
+  "bell-crack-1": "Crack with exposed flesh — reject.",
+  "bell-soft-1": "Wrinkled, dehydrated skin — soft-spot warning.",
 };
+
+const PALLET_IMAGES_BY_SKU: Record<string, string[]> = {
+  sku_roma: ["/imgs/food/pallets/pallet-tomatoe.png"],
+  sku_carrot: ["/imgs/food/pallets/pallet-carrot.png"],
+  sku_bell_pepper: [
+    "/imgs/food/pallets/pallet-bell_pepper-1.png",
+    "/imgs/food/pallets/pallet-bell_pepper-2.png",
+  ],
+};
+const PALLET_IMAGES_FALLBACK = [
+  "/imgs/food/pallets/pallet-tomatoe.png",
+  "/imgs/food/pallets/pallet-carrot.png",
+  "/imgs/food/pallets/pallet-bell_pepper-1.png",
+  "/imgs/food/pallets/pallet-bell_pepper-2.png",
+];
+
+export function palletThumb(skuId: string | undefined, seed: string): string {
+  const list = (skuId && PALLET_IMAGES_BY_SKU[skuId]) || PALLET_IMAGES_FALLBACK;
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  return list[Math.abs(h) % list.length];
+}
+
+const SINGLE_IMAGES_BY_SKU: Record<string, string[]> = {
+  sku_roma: ["/imgs/food/singles/single-tomatoe.png"],
+  sku_carrot: ["/imgs/food/singles/single-carrot.png"],
+  sku_bell_pepper: [
+    "/imgs/food/singles/single-bell_pepper.png",
+    "/imgs/food/singles/single-bell_pepper-2.png",
+  ],
+};
+const SINGLE_IMAGES_FALLBACK = ["/imgs/food/singles/single-tomatoe.png"];
+
+export function singleThumb(skuId: string | undefined, seed: string): string {
+  const list = (skuId && SINGLE_IMAGES_BY_SKU[skuId]) || SINGLE_IMAGES_FALLBACK;
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+  return list[Math.abs(h) % list.length];
+}
+
+// Each defect runs as its own model. Color checks are SKU-specific; everything
+// else uses a shared general detector. The "tomatoe" spelling is intentional
+// to match the model artifact naming.
+export function modelNameFor(defectType: DefectType, skuSlug: string): string {
+  if (defectType === "off_color") {
+    const root = skuSlug.split("/")[0];
+    const prefix = root === "tomato" ? "tomatoe" : root;
+    return `${prefix}_color_check`;
+  }
+  return `general_${defectType}_detection`;
+}
+
+// Local "bad example" photos per SKU and defect. Reference entries without a
+// matching local image are skipped — the in-app glossary should only show
+// curated artwork.
+const BAD_IMAGES_BY_SKU_DEFECT: Record<string, Partial<Record<DefectType, string[]>>> = {
+  sku_roma: {
+    bruise: ["/imgs/food/bad_food/tomatoe_bruise.png"],
+    crack: ["/imgs/food/bad_food/tomatoe_crack.png"],
+    mold: ["/imgs/food/bad_food/tomatoe_mold.png"],
+  },
+  sku_carrot: {
+    bruise: ["/imgs/food/bad_food/carrot_bruised.png"],
+    mold: ["/imgs/food/bad_food/carrot_mold.png"],
+  },
+  sku_bell_pepper: {
+    crack: ["/imgs/food/bad_food/bell_pepper_cracked.png"],
+    mold: [
+      "/imgs/food/bad_food/bell_pepper_mold.png",
+      "/imgs/food/bad_food/bell_pepper_mold_2.png",
+      "/imgs/food/bad_food/bell_pepper_mold_3.png",
+    ],
+    soft_spot: ["/imgs/food/bad_food/bell_pepper_wrinkles.png"],
+  },
+};
+
+function badImageUrl(skuId: string, defects: DefectType[], seed: string): string | undefined {
+  const map = BAD_IMAGES_BY_SKU_DEFECT[skuId];
+  if (!map) return undefined;
+  for (const d of defects) {
+    const list = map[d];
+    if (list && list.length > 0) {
+      // Numbered seeds (e.g. "bell-mold-2") map directly to image N to
+      // guarantee distinct picks; otherwise fall back to a hash of the seed.
+      const m = seed.match(/-(\d+)$/);
+      if (m) return list[(Number(m[1]) - 1) % list.length];
+      let h = 0;
+      for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
+      return list[Math.abs(h) % list.length];
+    }
+  }
+  return undefined;
+}
 
 export const referenceImages: ReferenceImage[] = (() => {
   const out: ReferenceImage[] = [];
   for (const skuId of Object.keys(refImgSeeds) as Array<keyof typeof refImgSeeds>) {
     const { good, bad } = refImgSeeds[skuId];
+    const singles = SINGLE_IMAGES_BY_SKU[skuId] ?? [];
     good.forEach((seed, i) => {
-      const id = i === 0 ? `ref_${skuId.replace("sku_", "")}_primary` : `ref_${seed}`;
+      const url = singles[i];
+      if (!url) return; // no local single → don't render a placeholder
+      const isPrimary = i === 0;
       out.push({
-        id,
+        id: isPrimary ? `ref_${skuId.replace("sku_", "")}_primary` : `ref_${seed}`,
         skuId,
         type: "good",
-        url: `https://picsum.photos/seed/${seed}/600/600`,
-        isPrimary: i === 0,
+        url,
+        isPrimary,
         uploadedAt: daysAgo(30 - i).toISOString(),
         caption: refCaptions[seed],
       });
     });
     bad.forEach((entry, i) => {
+      const url = badImageUrl(skuId, entry.defects, entry.seed);
+      if (!url) return; // no local bad image → drop the entry rather than picsum-pad
       out.push({
         id: `ref_${entry.seed}`,
         skuId,
         type: "bad",
         defectTypes: entry.defects,
-        url: `https://picsum.photos/seed/${entry.seed}/600/600`,
+        url,
         isPrimary: false,
         uploadedAt: daysAgo(25 - i).toISOString(),
         caption: refCaptions[entry.seed],
@@ -278,8 +384,8 @@ export const sessions: Session[] = (() => {
 
 // Distribution target: 50 pallets across today/yesterday/last-week
 // today: ~15, yesterday: ~12, last week (days 2-7): ~23
-// Per-SKU weighted: Roma 50%, Spinach 30%, Avocado 20%
-// Verdict distribution: 62% accept, 18% reject, 12% low_confidence, 8% unassisted
+// Per-SKU weighted: Roma Tomato 50%, Carrot 30%, Bell Pepper 20%
+// Verdict distribution: ~62% accept, 20% reject, 13% low_confidence, 5% unknownSku
 
 const MODEL_VERSIONS = {
   sku: ["v2.1", "v2.0", "v1.9"],
@@ -299,7 +405,7 @@ interface PalletSeed {
   confidence?: number;
   itemsDetected?: number;
   assisted: boolean;
-  hasDisagreement: boolean;
+  requiredMitigation: boolean;
   countMismatch: boolean;
   imageSeed: string;
   defectBreakdown?: Partial<Record<DefectType, number>>;
@@ -312,34 +418,42 @@ const palletSeeds: PalletSeed[] = [];
 function batchAdd(spec: {
   count: number;
   daysAgoN: number;
-  skuWeights: Array<[string | null, number]>; // sku slug id → weight, null = unassisted
+  skuWeights: Array<[string | null, number]>; // sku slug id → weight, null = filter-only (no SKU)
   verdictWeights: Array<[Verdict, number]>;
   hourRange: [number, number];
 }) {
   for (let i = 0; i < spec.count; i++) {
     const hour = spec.hourRange[0] + pickN(spec.hourRange[1] - spec.hourRange[0]);
     const minute = pickN(60);
-    const skuId = weightedPick(spec.skuWeights);
-    const finalVerdict = skuId === null ? "unassisted" : weightedPick(spec.verdictWeights);
+    const initialSkuId = weightedPick(spec.skuWeights);
+    let skuId: string | null = initialSkuId;
+    let finalVerdict: Verdict;
+    if (initialSkuId === null) {
+      finalVerdict = "unknownSku";
+    } else {
+      finalVerdict = weightedPick(spec.verdictWeights);
+      if (finalVerdict === "unknownSku") skuId = null; // SKU classifier ran but failed
+    }
     const operatorId = pick(["u_elena", "u_marcus", "u_isa"]);
     const deviceId = operatorId === "u_marcus" ? "dev_ip1" : "dev_rb1";
 
     let modelVerdict: Verdict | undefined;
     let confidence: number | undefined;
-    const assisted = skuId !== null;
-    let hasDisagreement = false;
+    // CV chain ran iff the filter detected a pallet — tracked by the initial SKU pick.
+    const assisted = initialSkuId !== null;
+    let requiredMitigation = false;
 
     if (assisted) {
       // Model verdict mostly agrees, sometimes disagrees
       const agreeProb = 0.82;
       if (rng() < agreeProb) {
-        modelVerdict = finalVerdict === "unassisted" ? "accept" : finalVerdict;
+        modelVerdict = finalVerdict === "unknownSku" ? "accept" : finalVerdict;
       } else {
-        // disagreement
+        // required mitigation
         if (finalVerdict === "accept") modelVerdict = "reject";
         else if (finalVerdict === "reject") modelVerdict = "accept";
         else modelVerdict = "accept";
-        hasDisagreement = finalVerdict === "accept" || finalVerdict === "reject";
+        requiredMitigation = finalVerdict === "accept" || finalVerdict === "reject";
       }
       confidence = finalVerdict === "low_confidence"
         ? 0.48 + rng() * 0.17
@@ -365,7 +479,7 @@ function batchAdd(spec: {
           })()
         : undefined;
 
-    const slug = skuId ? skuId.replace("sku_", "") : "unassisted";
+    const slug = skuId ? skuId.replace("sku_", "") : "unknown_sku";
     const imageSeed = `${slug}-${spec.daysAgoN}-${i}`;
 
     palletSeeds.push({
@@ -380,7 +494,7 @@ function batchAdd(spec: {
       confidence,
       itemsDetected,
       assisted,
-      hasDisagreement,
+      requiredMitigation,
       countMismatch,
       imageSeed,
       defectBreakdown,
@@ -400,16 +514,16 @@ function weightedPick<T>(weights: Array<[T, number]>): T {
 
 const SKU_WEIGHTS: Array<[string | null, number]> = [
   ["sku_roma", 0.45],
-  ["sku_spinach", 0.3],
-  ["sku_avocado", 0.18],
-  [null, 0.07], // unassisted
+  ["sku_carrot", 0.3],
+  ["sku_bell_pepper", 0.18],
+  [null, 0.07], // filter-only (no SKU recognized at filter stage)
 ];
 
 const VERDICT_WEIGHTS: Array<[Verdict, number]> = [
   ["accept", 0.62],
   ["reject", 0.2],
   ["low_confidence", 0.13],
-  ["unassisted", 0.05], // assisted pallet with too-low conf → still bucketed here
+  ["unknownSku", 0.05], // CV ran but SKU classifier failed → skuId is cleared above
 ];
 
 // TODAY: 15 pallets, ended by "now"
@@ -447,7 +561,7 @@ export const pallets: Pallet[] = palletSeeds.map((p, i) => {
     confidence: p.confidence,
     itemsDetected: p.itemsDetected,
     countMismatch: p.countMismatch,
-    hasDisagreement: p.hasDisagreement,
+    requiredMitigation: p.requiredMitigation,
     startedAt: started.toISOString(),
     closedAt: ongoing ? undefined : closed.toISOString(),
     operatorId: p.operatorId,
@@ -519,7 +633,7 @@ export const inferences: Inference[] = pallets.flatMap((p) => {
 // ──────────────── Voice events ────────────────
 
 export const voiceEvents: VoiceEvent[] = pallets
-  .filter((p) => p.hasDisagreement)
+  .filter((p) => p.requiredMitigation)
   .slice(0, 8)
   .map((p) => ({
     id: `ve_${p.id}`,

@@ -9,7 +9,7 @@ export default function Page() {
         "Team member list with roles",
         "Invite / remove member flow (tenant admin)",
         "Per-operator accept/reject distribution",
-        "Disagreement history for QA",
+        "Required-mitigation history for QA",
       ]}
     />
   );

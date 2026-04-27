@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { NOW } from "@/mock/data";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -9,7 +10,7 @@ export function formatPct(n: number, digits = 1): string {
   return `${(n * 100).toFixed(digits)}%`;
 }
 
-export function formatRelative(iso: string, now = new Date()): string {
+export function formatRelative(iso: string, now: Date = NOW): string {
   const then = new Date(iso);
   const diffMs = now.getTime() - then.getTime();
   const s = Math.round(diffMs / 1000);
