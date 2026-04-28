@@ -82,24 +82,6 @@ export default function DashboardPage() {
         <section className="card overflow-hidden">
           <div className="px-5 h-11 flex items-center justify-between border-b border-border">
             <div>
-              <h2 className="text-sm font-medium">Today&apos;s verdicts</h2>
-              <p className="mono text-2xs text-muted-fg uppercase mt-0.5" style={{ letterSpacing: "0.04em" }}>
-                accepted vs rejected pallets
-              </p>
-            </div>
-          </div>
-          <div className="p-5">
-            <FreshPieChart
-              data={verdictPie}
-              centerLabel="terminal"
-              emptyLabel="No accept/reject pallets yet today"
-            />
-          </div>
-        </section>
-
-        <section className="card overflow-hidden">
-          <div className="px-5 h-11 flex items-center justify-between border-b border-border">
-            <div>
               <h2 className="text-sm font-medium">Pipeline outcome</h2>
               <p className="mono text-2xs text-muted-fg uppercase mt-0.5" style={{ letterSpacing: "0.04em" }}>
                 FreshEye Success Rate · unassisted · required mitigation
@@ -111,6 +93,24 @@ export default function DashboardPage() {
               data={pipelinePie}
               centerLabel="today"
               emptyLabel="No pallets inspected yet today"
+            />
+          </div>
+        </section>
+
+        <section className="card overflow-hidden">
+          <div className="px-5 h-11 flex items-center justify-between border-b border-border">
+            <div>
+              <h2 className="text-sm font-medium">Today&apos;s verdicts</h2>
+              <p className="mono text-2xs text-muted-fg uppercase mt-0.5" style={{ letterSpacing: "0.04em" }}>
+                accepted vs rejected pallets
+              </p>
+            </div>
+          </div>
+          <div className="p-5">
+            <FreshPieChart
+              data={verdictPie}
+              centerLabel="terminal"
+              emptyLabel="No accept/reject pallets yet today"
             />
           </div>
         </section>
